@@ -1,140 +1,124 @@
 .data
-    msg_num1:       .asciiz "Introduza o primeiro numero (inteiro): "
-    msg_num2:       .asciiz "Introduza o segundo numero (real): "
-    msg_operacao:   .asciiz "Escolha a operacao:\nM - Multiplicacao\nD - Divisao\nA - Adicao\nS - Subtracao\nOperacao: "
-    msg_resultado:  .asciiz "Resultado: "
-    msg_continuar:  .asciiz "\nDeseja realizar outra operacao? (S/N): "
-    msg_invalida:   .asciiz "Operacao invalida!\n"
+    msg_num1:       .asciiz "Enter the first number (integer): "
+    msg_num2:       .asciiz "Enter the second number (real): "
+    msg_op:         .asciiz "Choose operation:\n+ : Addition\n- : Subtraction\n* : Multiplication\n/ : Division\nOperation: "
+    msg_res:        .asciiz "Result: "
+    msg_continue:   .asciiz "\nDo you want to perform another operation? (y/n): "
+    msg_invalid:    .asciiz "Invalid operation!\n"
     newline:        .asciiz "\n"
     buffer:         .space 4
 
 .text
 
-
 main:
-inicio:
-    # solicitar primeiro numero (inteiro)
+loop_start:
+    # prompt first number (int)
     li $v0, 4
     la $a0, msg_num1
     syscall
 
-    li $v0, 5              # ler inteiro
+    li $v0, 5              # read int
     syscall
-    move $t0, $v0          # guardar inteiro em $t0
+    move $t0, $v0          # save int to $t0
 
-    # converter inteiro para float
-    mtc1 $t0, $f0          # mover para coprocessador
-    cvt.s.w $f12, $f0      # converter para float e guardar em $f12
+    # convert int to float
+    mtc1 $t0, $f0
+    cvt.s.w $f12, $f0      # $f12 = float(num1)
 
-    # solicitar segundo numero (real)
+    # prompt second number (real)
     li $v0, 4
     la $a0, msg_num2
     syscall
 
-    li $v0, 6              # ler float
+    li $v0, 6              # read float
     syscall
-    mov.s $f13, $f0        # guardar float em $f13
+    mov.s $f13, $f0        # $f13 = num2
 
-    # solicitar operacao
+    # prompt operation
     li $v0, 4
-    la $a0, msg_operacao
+    la $a0, msg_op
     syscall
 
-    li $v0, 12             # ler caractere
+    li $v0, 12             # read char
     syscall
-    move $s0, $v0          # guardar operacao em $s0
+    move $s0, $v0          # $s0 = op
 
-    # imprimir nova linha
+    # print newline
     li $v0, 4
     la $a0, newline
     syscall
 
-    # chamar funcao calc
-    # $f12 = primeiro numero (float)
-    # $f13 = segundo numero (float)
-    # $s0 = operacao
+    # call calc
     jal calc
 
-    # mostrar resultado
+    # show result
     li $v0, 4
-    la $a0, msg_resultado
+    la $a0, msg_res
     syscall
 
-    mov.s $f12, $f0        # mover resultado para $f12
-    li $v0, 2              # imprimir float
+    mov.s $f12, $f0        # move result to $f12
+    li $v0, 2              # print float
     syscall
 
-    # perguntar se deseja continuar
+    # prompt continue
     li $v0, 4
-    la $a0, msg_continuar
+    la $a0, msg_continue
     syscall
 
-    li $v0, 12             # ler caractere
+    li $v0, 12             # read char
     syscall
     move $t1, $v0
 
-    # imprimir nova linha
+    # print newline
     li $v0, 4
     la $a0, newline
     syscall
 
-    # verificar resposta
-    li $t2, 'S'
-    beq $t1, $t2, inicio
-    li $t2, 's'
-    beq $t1, $t2, inicio
+    # check continue
+    li $t2, 'y'
+    beq $t1, $t2, loop_start
+    li $t2, 'Y'
+    beq $t1, $t2, loop_start
 
-    # terminar programa
+    # exit
     li $v0, 10
     syscall
 
-# funcao calc
-# entrada: $f12 (numero 1), $f13 (numero 2), $s0 (operacao)
-# saida: $f0 (resultado)
+# calc function
+# input: $f12 (n1), $f13 (n2), $s0 (op)
+# output: $f0 (result)
 calc:
-    # verificar operação
-    li $t0, 'M'
-    beq $s0, $t0, multiplicacao
-    li $t0, 'm'
-    beq $s0, $t0, multiplicacao
+    li $t0, '+'
+    beq $s0, $t0, op_add
+    li $t0, '-'
+    beq $s0, $t0, op_sub
+    li $t0, '*'
+    beq $s0, $t0, op_mul
+    li $t0, '/'
+    beq $s0, $t0, op_div
 
-    li $t0, 'D'
-    beq $s0, $t0, divisao
-    li $t0, 'd'
-    beq $s0, $t0, divisao
-
-    li $t0, 'A'
-    beq $s0, $t0, adicao
-    li $t0, 'a'
-    beq $s0, $t0, adicao
-
-    li $t0, 'S'
-    beq $s0, $t0, subtracao
-    li $t0, 's'
-    beq $s0, $t0, subtracao
-
-    # operacao invalida
+    # invalid
     li $v0, 4
-    la $a0, msg_invalida
+    la $a0, msg_invalid
     syscall
-
-    # retornar 0
+    
+    # return 0.0
     mtc1 $zero, $f0
     cvt.s.w $f0, $f0
     jr $ra
 
-multiplicacao:
+op_mul:
     mul.s $f0, $f12, $f13
     jr $ra
 
-divisao:
+op_div:
     div.s $f0, $f12, $f13
     jr $ra
 
-adicao:
+op_add:
     add.s $f0, $f12, $f13
     jr $ra
 
-subtracao:
+op_sub:
     sub.s $f0, $f12, $f13
     jr $ra
