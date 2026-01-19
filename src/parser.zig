@@ -21,7 +21,13 @@ pub fn parseProgram(allocator: std.mem.Allocator, noalias src: []const u8, noali
 
     while (lines.next()) |line_raw| {
         var line = std.mem.trim(u8, line_raw, " \t");
-        if (line.len == 0 or line[0] == '#') continue;
+        if (line.len == 0) continue;
+
+        // strip comments
+        if (std.mem.indexOfScalar(u8, line, '#')) |comment_idx| {
+            line = std.mem.trim(u8, line[0..comment_idx], " \t");
+            if (line.len == 0) continue;
+        }
 
         if (std.mem.eql(u8, line, ".data")) {
             in_data = true;
@@ -46,7 +52,7 @@ pub fn parseProgram(allocator: std.mem.Allocator, noalias src: []const u8, noali
 
             if (colon_idx + 1 < line.len) {
                 line = std.mem.trim(u8, line[colon_idx + 1 ..], " \t");
-                if (line.len == 0 or line[0] == '#') continue;
+                if (line.len == 0) continue;
                 // Fall through to process the rest of the line
             } else {
                 continue;

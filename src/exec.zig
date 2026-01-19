@@ -164,7 +164,14 @@ fn handleSyscall(noalias cpu: *Cpu, noalias mem: *Memory.Memory) void {
             std.process.exit(0);
         },
         12 => { // read_char (into $v0)
-            const char = stdin.takeByte() catch 0;
+            // skip whitespace/newlines
+            var char: u8 = 0;
+            while (true) {
+                char = stdin.takeByte() catch 0;
+                if (char == 0) break;
+                // if char is not whitespace, break
+                if (char != ' ' and char != '\t' and char != '\n' and char != '\r') break;
+            }
             cpu.regs[@intFromEnum(Register.v0)] = char;
         },
 

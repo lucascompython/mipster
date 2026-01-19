@@ -7,7 +7,8 @@ const Instruction = @import("instruction.zig").Instruction;
 const decode = @import("instruction.zig").decode;
 const Register = @import("cpu.zig").Register;
 const LabelTable = @import("labels.zig").LabelTable;
-const executeInstruction = @import("exec.zig").execute;
+const exec = @import("exec.zig");
+const executeInstruction = exec.execute;
 
 const allocator = std.heap.wasm_allocator;
 var cpu: Cpu = undefined;
@@ -105,8 +106,12 @@ pub fn handleSyscallWasm(noalias cpu_ptr: *Cpu, noalias mem_ptr: *Memory) void {
     }
 }
 
+fn checkInputStatus() bool {
+    return isWaitingForInput();
+}
+
 pub fn runUntilBlockOrExit() ?i32 {
-    const res = executeInstruction.runLoop(&cpu, &mem, instructions_list.items, &parsed_labels, &isWaitingForInput);
+    const res = exec.runLoop(&cpu, &mem, instructions_list.items, &parsed_labels, &checkInputStatus);
     if (res == .Blocked) return 1;
     return null;
 }
@@ -155,7 +160,16 @@ export fn continueAfterInput() i32 {
              const value = std.fmt.parseFloat(f32, input_slice) catch 0.0;
              cpu.fregs[0] = value;
         } else if (pending_syscall == 12) { // read_char
-             cpu.regs[@intFromEnum(Register.v0)] = input_slice[0];
+             // check if we got a valid char, if not (e.g. empty or just whitespace if we want)
+             // but usually for WASM prompt we get the whole string user typed.
+             // if user just typed enter, we might get empty string or just newline
+             if (input_slice.len > 0) {
+                 cpu.regs[@intFromEnum(Register.v0)] = input_slice[0];
+             } else {
+                 // nothing provided? keep waiting? or return 0?
+                 // Let's assume we got something.
+                 cpu.regs[@intFromEnum(Register.v0)] = 0;
+             }
         }
     }
     pending_syscall = 0;
