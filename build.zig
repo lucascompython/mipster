@@ -161,6 +161,20 @@ pub fn build(b: *std.Build) void {
     });
     wasm_step.dependOn(&wasm_install.step);
 
+    if (b.findProgram(&.{"wasm-opt"}, &.{}) catch null) |wasm_opt_path| {
+        const out_path = "web/public/mipster.wasm";
+        const optimize_cmd = b.addSystemCommand(&.{wasm_opt_path});
+        optimize_cmd.addArgs(&.{
+            "-O4",
+            out_path,
+            "--enable-bulk-memory",
+            "-o",
+            out_path,
+        });
+        optimize_cmd.step.dependOn(&wasm_install.step);
+        wasm_step.dependOn(&optimize_cmd.step);
+    }
+
     // Just like flags, top level steps are also listed in the `--help` menu.
     //
     // The Zig build system is entirely implemented in userland, which means
