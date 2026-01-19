@@ -13,7 +13,7 @@ const defaultCode = readFileSync(
 <Layout title="Mipster, MIPS Simulator">
     <div class="container">
         <header>
-            <h1>🔧 Mipster, a Small MIPS Simulator</h1>
+            <h1>Mipster, a Small MIPS Simulator</h1>
             <p>Write MIPS assembly code and run it in your browser</p>
         </header>
 
@@ -139,8 +139,11 @@ const defaultCode = readFileSync(
     function updateRegisters() {
         const values = simulator.getRegisters();
         registersDiv.innerHTML = "";
+        let len;
 
-        values.forEach((value, i) => {
+        for (let i = 0, len = values.length; i < len; ++i) {
+            const value = values[i];
+
             const registerDiv = document.createElement("div");
             registerDiv.className = "register";
             registerDiv.innerHTML = `
@@ -148,7 +151,7 @@ const defaultCode = readFileSync(
                 <div class="value">0x${value.toString(16).padStart(8, "0")}</div>
             `;
             registersDiv.appendChild(registerDiv);
-        });
+        }
     }
 
     function showInputPrompt() {
