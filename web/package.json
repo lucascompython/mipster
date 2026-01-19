@@ -9,9 +9,9 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.15.6"
+    "astro": "^5.16.11"
   },
   "devDependencies": {
-    "@playform/compress": "^0.2.0"
+    "@playform/compress": "^0.2.1"
   }
 }
