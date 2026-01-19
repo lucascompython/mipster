@@ -137,7 +137,6 @@ fn handleSyscall(noalias cpu: *Cpu, noalias mem: *Memory.Memory) void {
             stdout.print("{d}", .{cpu.fregs[12]}) catch @panic("Failed to print float");
             stdout.flush() catch @panic("Failed to flush stdout");
         },
-        // TODO: see why '\n' is not printed correctly
         4 => { // print_str
             var addr = a0;
             while (true) {
