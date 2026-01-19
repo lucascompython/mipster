@@ -168,6 +168,9 @@ pub fn build(b: *std.Build) void {
             "-O4",
             out_path,
             "--enable-bulk-memory",
+            "--enable-sign-ext",
+            "--enable-reference-types",
+            "--enable-multivalue",
             "-o",
             out_path,
         });
