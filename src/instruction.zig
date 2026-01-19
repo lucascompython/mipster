@@ -11,6 +11,8 @@ pub const Instruction = union(enum) {
     Add: struct { rd: u8, rs: u8, rt: u8 },
     Addi: struct { rt: u8, rs: u8, imm: i16 },
     Subi: struct { rt: u8, rs: u8, imm: i16 },
+    Lw: struct { rt: u8, base: u8, offset: i16 },
+    Sw: struct { rt: u8, base: u8, offset: i16 },
     Andi: struct { rt: u8, rs: u8, imm: u32 },
 
     Lui: struct { rt: u8, imm: u16 },
@@ -152,6 +154,36 @@ pub inline fn decode(noalias line: []const u8) ?Instruction {
             const rs = parseReg(parts.next() orelse return null);
             const label = parts.next() orelse return null;
             return Instruction{ .Beqz = .{ .rs = rs, .label = label } };
+        },
+        .Lw => {
+            const rt = parseReg(parts.next() orelse return null);
+            const offset_base = parts.next() orelse return null;
+            var offset: i16 = 0;
+            var base: u8 = 0;
+            if (std.mem.indexOfScalar(u8, offset_base, '(')) |lparen| {
+                if (std.mem.indexOfScalar(u8, offset_base, ')')) |rparen| {
+                    const offset_str = offset_base[0..lparen];
+                    const base_str = offset_base[lparen + 1 .. rparen];
+                    offset = std.fmt.parseInt(i16, offset_str, 10) catch 0;
+                    base = parseReg(base_str); // Needs parsing $sp etc.
+                }
+            }
+            return Instruction{ .Lw = .{ .rt = rt, .base = base, .offset = offset } };
+        },
+        .Sw => {
+            const rt = parseReg(parts.next() orelse return null);
+            const offset_base = parts.next() orelse return null;
+            var offset: i16 = 0;
+            var base: u8 = 0;
+            if (std.mem.indexOfScalar(u8, offset_base, '(')) |lparen| {
+                if (std.mem.indexOfScalar(u8, offset_base, ')')) |rparen| {
+                    const offset_str = offset_base[0..lparen];
+                    const base_str = offset_base[lparen + 1 .. rparen];
+                    offset = std.fmt.parseInt(i16, offset_str, 10) catch 0;
+                    base = parseReg(base_str);
+                }
+            }
+            return Instruction{ .Sw = .{ .rt = rt, .base = base, .offset = offset } };
         },
         .Li => {
             const rt = parseReg(parts.next() orelse return null);

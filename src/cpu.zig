@@ -65,7 +65,7 @@ pub const Cpu = struct {
             .fregs = [_]f32{0} ** 32,
             .pc = TEXT_START,
         };
-        cpu.regs[@intFromEnum(Register.sp)] = 0x7fffeffc; // stack pointer
+        cpu.regs[@intFromEnum(Register.sp)] = @import("memory.zig").STACK_START; // stack pointer
         return cpu;
     }
 };

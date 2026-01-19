@@ -99,6 +99,9 @@ pub fn handleSyscallWasm(noalias cpu_ptr: *Cpu, noalias mem_ptr: *Memory) void {
         6 => { // read_float
             pending_syscall = 6;
         },
+        11 => { // print_char
+            appendOutput(&[_]u8{@as(u8, @intCast(a0))});
+        },
         12 => { // read_char
             pending_syscall = 12;
         },

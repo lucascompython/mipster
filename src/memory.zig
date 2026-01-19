@@ -1,6 +1,7 @@
 pub const TEXT_START: u32 = 0x00400000;
 pub const DATA_START: u32 = 0x10010000;
 pub const MEM_SIZE: usize = 1024 * 1024 * 8; // 8 MB
+pub const STACK_START: u32 = TEXT_START + MEM_SIZE - 4;
 
 pub const Memory = struct {
     data: [MEM_SIZE]u8,

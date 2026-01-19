@@ -29,6 +29,18 @@ pub fn execute(instr: Instruction, noalias cpu: *Cpu, noalias mem: *Memory.Memor
             const byte = mem.data[(addr - Memory.DATA_START)];
             cpu.regs[i.rt] = @as(u32, byte);
         },
+        .Lw => |i| {
+            const offset = i.offset;
+            const base = cpu.regs[i.base];
+            const addr = base +% @as(u32, @bitCast(@as(i32, offset)));
+            cpu.regs[i.rt] = mem.readWord(addr);
+        },
+        .Sw => |i| {
+            const offset = i.offset;
+            const base = cpu.regs[i.base];
+            const addr = base +% @as(u32, @bitCast(@as(i32, offset)));
+            mem.writeWord(addr, cpu.regs[i.rt]);
+        },
         .Move => |i| cpu.regs[i.rd] = cpu.regs[i.rs],
         .And => |i| cpu.regs[i.rd] = cpu.regs[i.rs] & cpu.regs[i.rt],
         .Or => |i| cpu.regs[i.rd] = cpu.regs[i.rs] | cpu.regs[i.rt],
@@ -184,6 +196,11 @@ fn handleSyscall(noalias cpu: *Cpu, noalias mem: *Memory.Memory) void {
 
         10 => { // exit
             std.process.exit(0);
+        },
+        11 => { // print_char
+            const char = @as(u8, @intCast(a0));
+            stdout.print("{c}", .{char}) catch @panic("Failed to print char");
+            stdout.flush() catch @panic("Failed to flush stdout");
         },
         12 => { // read_char (into $v0)
             // skip whitespace/newlines
