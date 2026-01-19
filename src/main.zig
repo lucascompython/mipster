@@ -28,8 +28,9 @@ pub fn main(init: std.process.Init.Minimal) !void {
     const asm_source = try std.Io.Dir.cwd().readFileAlloc(io, asm_file_path, allocator, std.Io.Limit.unlimited);
 
     var cpu = Cpu.init();
-    var mem = Memory.init();
-    const parsed = try parser.parseProgram(allocator, asm_source, &mem);
+    const mem = try allocator.create(Memory);
+    mem.* = Memory.init();
+    const parsed = try parser.parseProgram(allocator, asm_source, mem);
 
     var instructions: std.ArrayList(Instruction.Instruction) = .empty;
     defer instructions.deinit(allocator);
@@ -42,8 +43,6 @@ pub fn main(init: std.process.Init.Minimal) !void {
         try instructions.append(allocator, instr);
     }
 
-
-
-    const res = exec.runLoop(&cpu, &mem, instructions.items, &parsed.labels, null);
+    const res = exec.runLoop(&cpu, mem, instructions.items, &parsed.labels, null);
     _ = res; // no blocking in main
 }
