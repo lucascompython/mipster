@@ -99,6 +99,9 @@ pub fn handleSyscallWasm(noalias cpu_ptr: *Cpu, noalias mem_ptr: *Memory) void {
         6 => { // read_float
             pending_syscall = 6;
         },
+        10 => { // exit
+            cpu_ptr.pc = 0; // Set PC to 0 to trigger termination in runLoop
+        },
         11 => { // print_char
             appendOutput(&[_]u8{@as(u8, @intCast(a0))});
         },
