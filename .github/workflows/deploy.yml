@@ -25,6 +25,9 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
 
+      - name: Install binaryen (wasm-opt)
+        run: sudo apt update && sudo apt install -y binaryen
+
       - name: Build WASM
         run: |
           zig build wasm
