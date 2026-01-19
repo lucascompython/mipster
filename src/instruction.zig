@@ -2,7 +2,7 @@ const std = @import("std");
 const parseReg = @import("cpu.zig").parseReg;
 const Cpu = @import("cpu.zig");
 
-fn parseFReg(name: []const u8) u8 {
+fn parseFReg(noalias name: []const u8) u8 {
     if (name.len < 2 or name[0] != '$' or name[1] != 'f') return 0;
     return std.fmt.parseInt(u8, name[2..], 10) catch 0;
 }
@@ -70,7 +70,7 @@ pub const OPCODE_MAP = blk: {
     break :blk std.StaticStringMap(OpCode).initComptime(kvs);
 };
 
-pub fn decode(noalias line: []const u8) ?Instruction {
+pub inline fn decode(noalias line: []const u8) ?Instruction {
     var parts = std.mem.tokenizeAny(u8, line, " ,\t");
     const op = parts.next() orelse return null;
 
