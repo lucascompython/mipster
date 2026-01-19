@@ -42,24 +42,8 @@ pub fn main(init: std.process.Init.Minimal) !void {
         try instructions.append(allocator, instr);
     }
 
-    const TEXT_START = @import("memory.zig").TEXT_START;
 
-    // TODO: extract this loop to a function, this is also used in wasm.zig
-    while (true) {
-        if (cpu.pc < TEXT_START) break;
-        const pc_offset = cpu.pc - TEXT_START;
-        const instr_idx = pc_offset / 4;
 
-        if (instr_idx >= instructions.items.len) break;
-
-        const instr = instructions.items[instr_idx];
-        const old_pc = cpu.pc;
-
-        exec.execute(instr, &cpu, &mem, &parsed.labels);
-
-        // if PC wasn't modified by a jump/branch, advance to next instruction
-        if (cpu.pc == old_pc) {
-            cpu.pc += 4;
-        }
-    }
+    const res = exec.runLoop(&cpu, &mem, instructions.items, &parsed.labels, null);
+    _ = res; // no blocking in main
 }

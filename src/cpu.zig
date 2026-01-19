@@ -56,11 +56,13 @@ pub fn parseReg(noalias name: []const u8) u8 {
 
 pub const Cpu = struct {
     regs: [32]u32,
+    fregs: [32]f32,
     pc: u32,
 
     pub fn init() Cpu {
         var cpu = Cpu{
             .regs = [_]u32{0} ** 32,
+            .fregs = [_]f32{0} ** 32,
             .pc = TEXT_START,
         };
         cpu.regs[@intFromEnum(Register.sp)] = 0x7fffeffc; // stack pointer

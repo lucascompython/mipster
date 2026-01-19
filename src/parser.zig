@@ -46,6 +46,7 @@ pub fn parseProgram(allocator: std.mem.Allocator, noalias src: []const u8, noali
 
             if (colon_idx + 1 < line.len) {
                 line = std.mem.trim(u8, line[colon_idx + 1 ..], " \t");
+                if (line.len == 0 or line[0] == '#') continue;
                 // Fall through to process the rest of the line
             } else {
                 continue;
@@ -61,11 +62,27 @@ pub fn parseProgram(allocator: std.mem.Allocator, noalias src: []const u8, noali
                 const quote_start = std.mem.findScalar(u8, line[index..], '"').?;
                 const quote_end = std.mem.findScalarLast(u8, line[index..], '"').?;
                 const str = line[quote_start + 1 .. quote_end];
-                for (str, 0..) |c, i| {
-                    mem.data[(data_ptr - DATA_START) + i] = c;
+                var i: usize = 0;
+                while (i < str.len) : (i += 1) {
+                    var char = str[i];
+                    if (char == '\\' and i + 1 < str.len) {
+                        const next_char = str[i + 1];
+                        switch (next_char) {
+                            'n' => char = '\n',
+                            't' => char = '\t',
+                            'r' => char = '\r',
+                            '0' => char = 0,
+                            '\\' => char = '\\',
+                            '"' => char = '"',
+                            else => {},
+                        }
+                        if (char != str[i]) i += 1;
+                    }
+                    mem.data[(data_ptr - DATA_START)] = char;
+                    data_ptr += 1;
                 }
-                mem.data[(data_ptr - DATA_START) + str.len] = 0;
-                data_ptr += @intCast(str.len + 1);
+                mem.data[(data_ptr - DATA_START)] = 0;
+                data_ptr += 1;
             } else if (std.mem.find(u8, line, ".space")) |index| {
                 var parts = std.mem.tokenizeAny(u8, line[index + 6 ..], " \t");
                 const size_str = parts.next().?;

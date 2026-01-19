@@ -82,94 +82,26 @@ const defaultCode = readFileSync(
 </Layout>
 
 <script>
-    let wasmInstance: any = null;
-    let wasmMemory: WebAssembly.Memory | null = null;
+    import { MipsterSimulator } from "../lib/simulator";
 
+    const simulator = new MipsterSimulator();
     const registerNames = [
-        "zero",
-        "at",
-        "v0",
-        "v1",
-        "a0",
-        "a1",
-        "a2",
-        "a3",
-        "t0",
-        "t1",
-        "t2",
-        "t3",
-        "t4",
-        "t5",
-        "t6",
-        "t7",
-        "s0",
-        "s1",
-        "s2",
-        "s3",
-        "s4",
-        "s5",
-        "s6",
-        "s7",
-        "t8",
-        "t9",
-        "k0",
-        "k1",
-        "gp",
-        "sp",
-        "fp",
-        "ra",
+        "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
+        "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+        "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+        "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra",
     ];
 
     const outputEl = document.getElementById("output")!;
     const registersDiv = document.getElementById("registers")!;
+    const inputPrompt = document.getElementById("inputPrompt")!;
+    const inputField = document.getElementById("inputField") as HTMLInputElement;
 
-    async function loadWasm() {
-        try {
-            const result = await WebAssembly.instantiateStreaming(
-                fetch("/mipster/mipster.wasm"),
-            );
-
-            wasmInstance = result.instance;
-            wasmMemory = wasmInstance.exports.memory as WebAssembly.Memory;
-
-            return true;
-        } catch (error) {
-            outputEl.textContent =
-                "Error: Failed to load WASM module\n" +
-                (error as Error).message;
-            return false;
-        }
-    }
-
-    function getStringFromWasm(ptr: number, len: number): string {
-        if (!wasmMemory) return "";
-        const bytes = new Uint8Array(wasmMemory.buffer, ptr, len);
-        return new TextDecoder().decode(bytes);
-    }
-
-    function updateOutput() {
-        if (!wasmInstance) return;
-
-        const outputPtr = wasmInstance.exports.getOutputPtr();
-        const outputLen = wasmInstance.exports.getOutputLen();
-
-        if (outputLen > 0) {
-            const output = getStringFromWasm(outputPtr, outputLen);
-
-            outputEl.textContent += output;
-
-            wasmInstance.exports.clearOutput();
-        }
-    }
-
-    // TODO: this can be optimized to only update changed registers
     function updateRegisters() {
-        if (!wasmInstance) return;
-
+        const values = simulator.getRegisters();
         registersDiv.innerHTML = "";
-
-        for (let i = 0; i < 32; i++) {
-            const value = wasmInstance.exports.getRegister(i);
+        
+        values.forEach((value, i) => {
             const registerDiv = document.createElement("div");
             registerDiv.className = "register";
             registerDiv.innerHTML = `
@@ -177,13 +109,9 @@ const defaultCode = readFileSync(
                 <div class="value">0x${value.toString(16).padStart(8, "0")}</div>
             `;
             registersDiv.appendChild(registerDiv);
-        }
+        });
     }
 
-    const inputPrompt = document.getElementById("inputPrompt")!;
-    const inputField = document.getElementById(
-        "inputField",
-    ) as HTMLInputElement;
     function showInputPrompt() {
         inputPrompt.style.display = "flex";
         inputField.focus();
@@ -194,101 +122,52 @@ const defaultCode = readFileSync(
         inputField.value = "";
     }
 
-    function submitInput() {
-        const input = inputField.value.trim();
-
-        // append the input to output for display
-        outputEl.textContent += input + "\n";
-
-        const encoder = new TextEncoder();
-        const inputBytes = encoder.encode(input);
-
-        if (!wasmMemory || !wasmInstance) return;
-
-        // write input to a known location in WASM memory
-        const inputPtr = 2048;
-        const memory = new Uint8Array(wasmMemory.buffer);
-        memory.set(inputBytes, inputPtr);
-
-        wasmInstance.exports.provideInput(inputPtr, inputBytes.length);
-
-        hideInputPrompt();
-
-        // continue execution after input
-        wasmInstance.exports.continueAfterInput();
-
-        updateOutput();
-
-        const stillWaiting = wasmInstance.exports.isWaitingForInput();
-
-        if (stillWaiting) {
+    function handleRunResult(result: number) {
+        if (simulator.isWaitingForInput()) {
             showInputPrompt();
         } else {
-            updateRegisters();
+             if (result === 0) {
+                updateRegisters();
+             }
         }
     }
 
-    const editor = document.getElementById("editor") as HTMLElement;
-    const codeEl = editor.querySelector("code")!;
-    async function runCode() {
-        if (!wasmInstance) {
-            outputEl.textContent = "Error: WASM not loaded yet\n";
-            return;
+    async function submitInput() {
+        const input = inputField.value.trim();
+        outputEl.textContent += input + "\n";
+        
+        hideInputPrompt();
+        
+        try {
+            const result = simulator.provideInput(input);
+            handleRunResult(result);
+        } catch (e) {
+            outputEl.textContent += `Error: ${(e as Error).message}\n`;
         }
+    }
 
-        let code = "";
-
-        const editor = document.getElementById("editor") as HTMLElement;
-        // @ts-ignore
-        code = editor.value;
-
+    async function runCode() {
+        const editor = document.getElementById("editor") as HTMLInputElement;
+        const code = editor.value; // Textarea value
         outputEl.textContent = "";
 
         try {
-            // Encode the code to bytes
-            const encoder = new TextEncoder();
-            const codeBytes = encoder.encode(code);
-
-            if (!wasmMemory) return;
-
-            // allocate memory for the code
-            const codePtr = 4096;
-            const memory = new Uint8Array(wasmMemory.buffer);
-
-            // make sure we have enough space
-            if (codePtr + codeBytes.length > memory.length) {
-                throw new Error("Code too large");
-            }
-
-            memory.set(codeBytes, codePtr);
-
-            const result = wasmInstance.exports.run(codePtr, codeBytes.length);
-
-            updateOutput();
-
-            const waitingForInput = wasmInstance.exports.isWaitingForInput();
-
-            if (waitingForInput) {
-                showInputPrompt();
-            } else {
-                if (result === 0) {
-                    updateRegisters();
-                }
-            }
-        } catch (error) {
-            outputEl.textContent += "\nError: " + (error as Error).message;
-            console.error(error);
+            const result = simulator.run(code);
+            handleRunResult(result);
+        } catch (e) {
+            outputEl.textContent += `Error: ${(e as Error).message}\n`;
         }
-    }
-
-    function clearOutput() {
-        outputEl.textContent = "";
     }
 
     const loadingOverlay = document.getElementById("loadingOverlay")!;
     const loadingText = loadingOverlay?.querySelector("p")!;
+
     document.addEventListener("DOMContentLoaded", async () => {
-        const loaded = await loadWasm();
+        simulator.setOutputCallback((text) => {
+            outputEl.textContent += text;
+        });
+
+        const loaded = await simulator.load("/mipster/mipster.wasm");
 
         if (loaded) {
             loadingOverlay.style.display = "none";
@@ -301,27 +180,20 @@ const defaultCode = readFileSync(
         }
 
         document.getElementById("runBtn")?.addEventListener("click", runCode);
-        document
-            .getElementById("clearBtn")
-            ?.addEventListener("click", clearOutput);
-        document
-            .getElementById("submitInput")
-            ?.addEventListener("click", submitInput);
+        document.getElementById("clearBtn")?.addEventListener("click", () => {
+             outputEl.textContent = "";
+        });
+        document.getElementById("submitInput")?.addEventListener("click", submitInput);
 
         inputField.addEventListener("keypress", (e) => {
-            if (
-                (e as KeyboardEvent).key === "Enter" &&
-                inputField.value.trim() !== ""
-            ) {
+            if (e.key === "Enter" && inputField.value.trim() !== "") {
                 submitInput();
             }
         });
-
+        
+        const editor = document.getElementById("editor")!;
         editor.addEventListener("keydown", (e) => {
-            if (
-                (e as KeyboardEvent).ctrlKey &&
-                (e as KeyboardEvent).key === "Enter"
-            ) {
+            if ((e as KeyboardEvent).ctrlKey && (e as KeyboardEvent).key === "Enter") {
                 runCode();
             }
         });

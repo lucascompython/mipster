@@ -81,6 +81,22 @@ pub fn execute(instr: Instruction, noalias cpu: *Cpu, noalias mem: *Memory.Memor
                 handleSyscall(cpu, mem);
             }
         },
+        .Mtc1 => |i| {
+            // move to coprocessor 1
+            // bitcast u32 to f32
+            cpu.fregs[i.fs] = @as(f32, @bitCast(cpu.regs[i.rt]));
+        },
+        .@"cvt.s.w" => |i| {
+            // cvt.s.w: convert integer in fs to float in fd
+            // fs is likely bitcast from u32, so we treat it as i32
+            const int_val: i32 = @bitCast(cpu.fregs[i.fs]);
+            cpu.fregs[i.fd] = @as(f32, @floatFromInt(int_val));
+        },
+        .@"mov.s" => |i| cpu.fregs[i.fd] = cpu.fregs[i.fs],
+        .@"mul.s" => |i| cpu.fregs[i.fd] = cpu.fregs[i.fs] * cpu.fregs[i.ft],
+        .@"div.s" => |i| cpu.fregs[i.fd] = cpu.fregs[i.fs] / cpu.fregs[i.ft],
+        .@"add.s" => |i| cpu.fregs[i.fd] = cpu.fregs[i.fs] + cpu.fregs[i.ft],
+        .@"sub.s" => |i| cpu.fregs[i.fd] = cpu.fregs[i.fs] - cpu.fregs[i.ft],
     }
 }
 
@@ -105,6 +121,10 @@ fn handleSyscall(noalias cpu: *Cpu, noalias mem: *Memory.Memory) void {
             stdout.print("{d}", .{cpu.regs[@intFromEnum(Register.a0)]}) catch @panic("Failed to print integer");
             stdout.flush() catch @panic("Failed to flush stdout");
         },
+        2 => { // print_float
+            stdout.print("{d}", .{cpu.fregs[12]}) catch @panic("Failed to print float");
+            stdout.flush() catch @panic("Failed to flush stdout");
+        },
         // TODO: see why '\n' is not printed correctly
         4 => { // print_str
             var addr = a0;
@@ -123,6 +143,11 @@ fn handleSyscall(noalias cpu: *Cpu, noalias mem: *Memory.Memory) void {
             const value = std.fmt.parseInt(u32, line.?, 10) catch return;
             cpu.regs[@intFromEnum(Register.v0)] = value;
         },
+        6 => { // read_float (into $f0)
+            const line = stdin.takeDelimiter('\n') catch return;
+            const value = std.fmt.parseFloat(f32, line.?) catch return;
+            cpu.fregs[0] = value;
+        },
         8 => { // read str
             const len = cpu.regs[@intFromEnum(Register.a1)];
             const addr = a0;
@@ -138,7 +163,46 @@ fn handleSyscall(noalias cpu: *Cpu, noalias mem: *Memory.Memory) void {
         10 => { // exit
             std.process.exit(0);
         },
+        12 => { // read_char (into $v0)
+            const char = stdin.takeByte() catch 0;
+            cpu.regs[@intFromEnum(Register.v0)] = char;
+        },
 
         else => {},
     }
+}
+
+pub const RunResult = enum { Finished, Blocked };
+
+pub fn runLoop(noalias cpu: *Cpu, noalias mem: *Memory.Memory, instructions: []const Instruction, noalias labels: *const LabelTable, check_block: ?*const fn () bool) RunResult {
+    const TEXT_START = Memory.TEXT_START;
+    while (true) {
+        if (cpu.pc < TEXT_START) break;
+        const pc_offset = cpu.pc - TEXT_START;
+        const instr_idx = pc_offset / 4;
+
+        if (instr_idx >= instructions.len) break;
+
+        const instr = instructions[instr_idx];
+        const old_pc = cpu.pc;
+
+        execute(instr, cpu, mem, labels);
+
+        if (check_block) |cb| {
+            if (cb()) {
+                // Determine if we need to advance PC.
+                // If it was a syscall that caused the block, it didn't change PC (jump).
+                // So we advance it to avoid re-executing it upon resume.
+                if (cpu.pc == old_pc) {
+                    cpu.pc += 4;
+                }
+                return .Blocked;
+            }
+        }
+
+        if (cpu.pc == old_pc) {
+            cpu.pc += 4;
+        }
+    }
+    return .Finished;
 }

@@ -1,5 +1,11 @@
 const std = @import("std");
 const parseReg = @import("cpu.zig").parseReg;
+const Cpu = @import("cpu.zig");
+
+fn parseFReg(name: []const u8) u8 {
+    if (name.len < 2 or name[0] != '$' or name[1] != 'f') return 0;
+    return std.fmt.parseInt(u8, name[2..], 10) catch 0;
+}
 
 pub const Instruction = union(enum) {
     Add: struct { rd: u8, rs: u8, rt: u8 },
@@ -28,6 +34,13 @@ pub const Instruction = union(enum) {
     Or: struct { rd: u8, rs: u8, rt: u8 },
     Nor: struct { rd: u8, rs: u8, rt: u8 },
     Xor: struct { rd: u8, rs: u8, rt: u8 },
+    Mtc1: struct { rt: u8, fs: u8 },
+    @"cvt.s.w": struct { fd: u8, fs: u8 }, // cvt.s.w
+    @"mov.s": struct { fd: u8, fs: u8 },
+    @"mul.s": struct { fd: u8, fs: u8, ft: u8 },
+    @"div.s": struct { fd: u8, fs: u8, ft: u8 },
+    @"add.s": struct { fd: u8, fs: u8, ft: u8 },
+    @"sub.s": struct { fd: u8, fs: u8, ft: u8 },
 
     Sll: struct { rd: u8, rt: u8, shamt: u5 },
 };
@@ -143,7 +156,12 @@ pub fn decode(noalias line: []const u8) ?Instruction {
         .Li => {
             const rt = parseReg(parts.next() orelse return null);
             const imm_str = parts.next() orelse return null;
-            const imm = std.fmt.parseInt(i32, imm_str, 0) catch return null;
+            var imm: i32 = 0;
+            if (imm_str.len >= 3 and imm_str[0] == '\'') {
+                imm = imm_str[1];
+            } else {
+                imm = std.fmt.parseInt(i32, imm_str, 0) catch return null;
+            }
             return Instruction{ .Li = .{ .rt = rt, .imm = imm } };
         },
         .La => {
@@ -203,5 +221,44 @@ pub fn decode(noalias line: []const u8) ?Instruction {
             return Instruction{ .Sll = .{ .rd = rd, .rt = rt, .shamt = shamt } };
         },
         .Syscall => return Instruction{ .Syscall = {} },
+        .Mtc1 => {
+            const rt = parseReg(parts.next() orelse return null);
+            const fs = parseFReg(parts.next() orelse return null);
+            return Instruction{ .Mtc1 = .{ .rt = rt, .fs = fs } };
+        },
+        .@"cvt.s.w" => {
+            const fd = parseFReg(parts.next() orelse return null);
+            const fs = parseFReg(parts.next() orelse return null);
+            return Instruction{ .@"cvt.s.w" = .{ .fd = fd, .fs = fs } };
+        },
+        .@"mov.s" => {
+            const fd = parseFReg(parts.next() orelse return null);
+            const fs = parseFReg(parts.next() orelse return null);
+            return Instruction{ .@"mov.s" = .{ .fd = fd, .fs = fs } };
+        },
+        .@"mul.s" => {
+            const fd = parseFReg(parts.next() orelse return null);
+            const fs = parseFReg(parts.next() orelse return null);
+            const ft = parseFReg(parts.next() orelse return null);
+            return Instruction{ .@"mul.s" = .{ .fd = fd, .fs = fs, .ft = ft } };
+        },
+        .@"div.s" => {
+            const fd = parseFReg(parts.next() orelse return null);
+            const fs = parseFReg(parts.next() orelse return null);
+            const ft = parseFReg(parts.next() orelse return null);
+            return Instruction{ .@"div.s" = .{ .fd = fd, .fs = fs, .ft = ft } };
+        },
+        .@"add.s" => {
+            const fd = parseFReg(parts.next() orelse return null);
+            const fs = parseFReg(parts.next() orelse return null);
+            const ft = parseFReg(parts.next() orelse return null);
+            return Instruction{ .@"add.s" = .{ .fd = fd, .fs = fs, .ft = ft } };
+        },
+        .@"sub.s" => {
+            const fd = parseFReg(parts.next() orelse return null);
+            const fs = parseFReg(parts.next() orelse return null);
+            const ft = parseFReg(parts.next() orelse return null);
+            return Instruction{ .@"sub.s" = .{ .fd = fd, .fs = fs, .ft = ft } };
+        },
     }
 }

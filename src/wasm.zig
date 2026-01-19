@@ -16,7 +16,7 @@ var output_buffer: [4096]u8 = undefined;
 var output_len: usize = 0;
 var input_buffer: [256]u8 = undefined;
 var input_len: usize = 0;
-var waiting_for_input: bool = false;
+var pending_syscall: u32 = 0;
 var parsed_labels: LabelTable = undefined;
 var instructions_list: std.ArrayList(Instruction) = .empty;
 
@@ -25,7 +25,7 @@ export fn init() void {
     mem = Memory.init();
     output_len = 0;
     input_len = 0;
-    waiting_for_input = false;
+    pending_syscall = 0;
 }
 
 export fn getOutputPtr() [*]const u8 {
@@ -41,7 +41,7 @@ export fn clearOutput() void {
 }
 
 export fn isWaitingForInput() bool {
-    return waiting_for_input;
+    return pending_syscall != 0;
 }
 
 export fn provideInput(noalias ptr: [*]const u8, len: usize) void {
@@ -49,13 +49,14 @@ export fn provideInput(noalias ptr: [*]const u8, len: usize) void {
     const to_copy = @min(len, input_buffer.len);
     @memcpy(input_buffer[0..to_copy], bytes[0..to_copy]);
     input_len = to_copy;
-    waiting_for_input = false;
+    // Don't reset pending_syscall here, it's needed in continueAfterInput
 }
 
 export fn getInputValue() i32 {
     if (input_len == 0) return 0;
     const value = std.fmt.parseInt(i32, input_buffer[0..input_len], 10) catch 0;
-    input_len = 0;
+    // Don't reset input_len here if we want to reuse it? strictly it's one-shot usually
+    // But let's keep behavior similar for now or just rely on continueAfterInput
     return value;
 }
 
@@ -76,6 +77,11 @@ pub fn handleSyscallWasm(noalias cpu_ptr: *Cpu, noalias mem_ptr: *Memory) void {
             const str = std.fmt.bufPrint(&buf, "{d}", .{cpu_ptr.regs[@intFromEnum(Register.a0)]}) catch "?";
             appendOutput(str);
         },
+        2 => { // print_float
+            var buf: [64]u8 = undefined;
+            const str = std.fmt.bufPrint(&buf, "{d}", .{cpu_ptr.fregs[12]}) catch "?";
+            appendOutput(str);
+        },
         4 => { // print_str
             var addr = a0;
             const DATA_START = @import("memory.zig").DATA_START;
@@ -87,36 +93,21 @@ pub fn handleSyscallWasm(noalias cpu_ptr: *Cpu, noalias mem_ptr: *Memory) void {
             }
         },
         5 => { // read_int
-            waiting_for_input = true;
+            pending_syscall = 5;
         },
-        // TODO: implement read_str syscall
+        6 => { // read_float
+            pending_syscall = 6;
+        },
+        12 => { // read_char
+            pending_syscall = 12;
+        },
         else => {},
     }
 }
 
 pub fn runUntilBlockOrExit() ?i32 {
-    while (true) {
-        if (cpu.pc < TEXT_START) break;
-        const pc_offset = cpu.pc - TEXT_START;
-        const instr_idx = pc_offset / 4;
-
-        if (instr_idx >= instructions_list.items.len) break;
-
-        const instr = instructions_list.items[instr_idx];
-        const old_pc = cpu.pc;
-
-        executeInstruction(instr, &cpu, &mem, &parsed_labels);
-
-        if (waiting_for_input) {
-            // save state and return, will continue from next instruction
-            cpu.pc += 4;
-            return 1; // signal that we're waiting for input
-        }
-
-        if (cpu.pc == old_pc) {
-            cpu.pc += 4;
-        }
-    }
+    const res = executeInstruction.runLoop(&cpu, &mem, instructions_list.items, &parsed_labels, &isWaitingForInput);
+    if (res == .Blocked) return 1;
     return null;
 }
 
@@ -155,10 +146,20 @@ export fn run(noalias code_ptr: [*]const u8, code_len: usize) i32 {
 }
 
 export fn continueAfterInput() i32 {
-    // set the input value in the register
-    const value = getInputValue();
-    cpu.regs[@intFromEnum(Register.v0)] = @bitCast(value);
-    waiting_for_input = false;
+    if (input_len > 0) {
+        const input_slice = input_buffer[0..input_len];
+        if (pending_syscall == 5) { // read_int
+             const value = std.fmt.parseInt(i32, input_slice, 10) catch 0;
+             cpu.regs[@intFromEnum(Register.v0)] = @bitCast(value);
+        } else if (pending_syscall == 6) { // read_float
+             const value = std.fmt.parseFloat(f32, input_slice) catch 0.0;
+             cpu.fregs[0] = value;
+        } else if (pending_syscall == 12) { // read_char
+             cpu.regs[@intFromEnum(Register.v0)] = input_slice[0];
+        }
+    }
+    pending_syscall = 0;
+    input_len = 0;
 
     const result = runUntilBlockOrExit();
     if (result) |r| {

@@ -110,7 +110,6 @@ pub fn build(b: *std.Build) void {
     const run_cmd = b.addRunArtifact(exe);
     run_step.dependOn(&run_cmd.step);
 
-    // TODO: re-enable when https://github.com/KurtWagner/zlinter/pull/119 gets merged
     // const lint_cmd = b.step("lint", "Lint source code.");
     // lint_cmd.dependOn(step: {
     //     // Swap in and out whatever rules you see fit from RULES.md
