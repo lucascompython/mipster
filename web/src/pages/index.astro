@@ -5,7 +5,7 @@ import { join } from "path";
 
 // Read the default assembly file at build time
 const defaultCode = readFileSync(
-    join(process.cwd(), "../tests/add.s"),
+    join(process.cwd(), "../tests/calc.s"),
     "utf-8",
 );
 ---
@@ -21,14 +21,17 @@ const defaultCode = readFileSync(
             <div class="editor-section">
                 <div class="section-header">
                     <h2>Assembly Code</h2>
-                    <button id="runBtn" class="btn btn-primary">
-                        ▶ Run
-                    </button>
+                    <button id="runBtn" class="btn btn-primary"> ▶ Run </button>
                 </div>
 
-                <textarea id="editor" contenteditable="true" spellcheck="false">
+                <div
+                    id="codemirror-editor"
+                    style="flex: 1; overflow: hidden; height: 100%;"
+                >
+                </div>
+                <div id="default-code" style="display: none;">
                     {defaultCode}
-                </textarea>
+                </div>
             </div>
 
             <div class="output-section">
@@ -83,24 +86,60 @@ const defaultCode = readFileSync(
 
 <script>
     import { MipsterSimulator } from "../lib/simulator";
+    import { EditorView, basicSetup } from "codemirror";
+    import { StreamLanguage } from "@codemirror/language";
+    import { gas } from "@codemirror/legacy-modes/mode/gas";
+    import { oneDark } from "@codemirror/theme-one-dark";
 
     const simulator = new MipsterSimulator();
     const registerNames = [
-        "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
-        "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
-        "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
-        "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra",
+        "zero",
+        "at",
+        "v0",
+        "v1",
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "t0",
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "t5",
+        "t6",
+        "t7",
+        "s0",
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "s6",
+        "s7",
+        "t8",
+        "t9",
+        "k0",
+        "k1",
+        "gp",
+        "sp",
+        "fp",
+        "ra",
     ];
 
     const outputEl = document.getElementById("output")!;
     const registersDiv = document.getElementById("registers")!;
     const inputPrompt = document.getElementById("inputPrompt")!;
-    const inputField = document.getElementById("inputField") as HTMLInputElement;
+    const inputField = document.getElementById(
+        "inputField",
+    ) as HTMLInputElement;
+
+    let editorView: EditorView;
 
     function updateRegisters() {
         const values = simulator.getRegisters();
         registersDiv.innerHTML = "";
-        
+
         values.forEach((value, i) => {
             const registerDiv = document.createElement("div");
             registerDiv.className = "register";
@@ -126,18 +165,18 @@ const defaultCode = readFileSync(
         if (simulator.isWaitingForInput()) {
             showInputPrompt();
         } else {
-             if (result === 0) {
+            if (result === 0) {
                 updateRegisters();
-             }
+            }
         }
     }
 
     async function submitInput() {
         const input = inputField.value.trim();
         outputEl.textContent += input + "\n";
-        
+
         hideInputPrompt();
-        
+
         try {
             const result = simulator.provideInput(input);
             handleRunResult(result);
@@ -147,8 +186,7 @@ const defaultCode = readFileSync(
     }
 
     async function runCode() {
-        const editor = document.getElementById("editor") as HTMLInputElement;
-        const code = editor.value; // Textarea value
+        const code = editorView.state.doc.toString();
         outputEl.textContent = "";
 
         try {
@@ -163,6 +201,23 @@ const defaultCode = readFileSync(
     const loadingText = loadingOverlay?.querySelector("p")!;
 
     document.addEventListener("DOMContentLoaded", async () => {
+        const defaultCode =
+            document.getElementById("default-code")?.textContent || "";
+
+        editorView = new EditorView({
+            doc: defaultCode,
+            extensions: [
+                basicSetup,
+                StreamLanguage.define(gas),
+                oneDark,
+                EditorView.theme({
+                    "&": { height: "100%", fontSize: "14px" },
+                    ".cm-scroller": { overflow: "auto" },
+                }),
+            ],
+            parent: document.getElementById("codemirror-editor")!,
+        });
+
         simulator.setOutputCallback((text) => {
             outputEl.textContent += text;
         });
@@ -181,19 +236,21 @@ const defaultCode = readFileSync(
 
         document.getElementById("runBtn")?.addEventListener("click", runCode);
         document.getElementById("clearBtn")?.addEventListener("click", () => {
-             outputEl.textContent = "";
+            outputEl.textContent = "";
         });
-        document.getElementById("submitInput")?.addEventListener("click", submitInput);
+        document
+            .getElementById("submitInput")
+            ?.addEventListener("click", submitInput);
 
         inputField.addEventListener("keypress", (e) => {
             if (e.key === "Enter" && inputField.value.trim() !== "") {
                 submitInput();
             }
         });
-        
-        const editor = document.getElementById("editor")!;
-        editor.addEventListener("keydown", (e) => {
-            if ((e as KeyboardEvent).ctrlKey && (e as KeyboardEvent).key === "Enter") {
+
+        editorView.contentDOM.addEventListener("keydown", (e) => {
+            if (e.ctrlKey && e.key === "Enter") {
+                e.preventDefault();
                 runCode();
             }
         });
@@ -278,24 +335,21 @@ const defaultCode = readFileSync(
         color: #00d9ff;
     }
 
-    #editor {
+    #codemirror-editor {
         flex: 1;
         width: 100%;
-        padding: 15px;
         border: 2px solid #3a3a3a;
         border-radius: 8px;
-        font-family: "Courier New", Courier, monospace;
-        font-size: 14px;
-        line-height: 1.5;
-        resize: none;
-        background: #1e1e1e;
-        color: #e0e0e0;
-        transition: border-color 0.3s;
+        overflow: hidden;
     }
 
-    #editor:focus {
-        outline: none;
-        border-color: #00d9ff;
+    /* CodeMirror specific styles */
+    :global(.cm-editor) {
+        height: 100%;
+    }
+
+    :global(.cm-scroller) {
+        font-family: "Courier New", Courier, monospace !important;
     }
 
     .output-box {
