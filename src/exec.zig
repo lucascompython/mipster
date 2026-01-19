@@ -139,12 +139,34 @@ fn handleSyscall(noalias cpu: *Cpu, noalias mem: *Memory.Memory) void {
             stdout.flush() catch @panic("Failed to flush stdout");
         },
         5 => { // read_int
-            const line = stdin.takeDelimiter('\n') catch return;
+            // skip whitespace
+            var line: ?[]const u8 = null;
+            while (true) {
+                line = stdin.takeDelimiter('\n') catch return;
+                if (line) |l| {
+                    const trimmed = std.mem.trim(u8, l, " \t\r");
+                    if (trimmed.len > 0) {
+                        line = trimmed;
+                        break;
+                    }
+                } else return;
+            }
             const value = std.fmt.parseInt(u32, line.?, 10) catch return;
             cpu.regs[@intFromEnum(Register.v0)] = value;
         },
         6 => { // read_float (into $f0)
-            const line = stdin.takeDelimiter('\n') catch return;
+            // skip whitespace
+            var line: ?[]const u8 = null;
+            while (true) {
+                line = stdin.takeDelimiter('\n') catch return;
+                if (line) |l| {
+                    const trimmed = std.mem.trim(u8, l, " \t\r");
+                    if (trimmed.len > 0) {
+                        line = trimmed;
+                        break;
+                    }
+                } else return;
+            }
             const value = std.fmt.parseFloat(f32, line.?) catch return;
             cpu.fregs[0] = value;
         },
