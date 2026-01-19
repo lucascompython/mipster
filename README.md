@@ -7,7 +7,7 @@ This is a simple MIPS simulator written in Zig. It supports a subset of MIPS ins
 ## Features
 
 - Basic MIPS instruction set support (see [instruction.zig](src/instruction.zig#L4) for details)
-- Basic system calls (print_int, print_str, read_int)
+- Basic system calls (see [exec.zig](src/exec.zig#L131))
 - Parse MIPS assembly code
 - WebAssembly support - runs in the browser
 - Interactive web editor with syntax highlighting
