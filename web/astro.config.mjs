@@ -7,5 +7,4 @@ import playformCompress from "@playform/compress";
 export default defineConfig({
   site: "https://lucascompython.github.io/",
   base: "/mipster",
-  integrations: [playformCompress()],
 });
